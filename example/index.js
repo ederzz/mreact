@@ -1,4 +1,4 @@
-import render from '../src/render'
+import { render } from '../src/reconciler'
 import createElement from '../src/createElement'
 
 /** @jsx createElement */
