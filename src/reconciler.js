@@ -10,20 +10,20 @@ export function render(element, container) {
 }
 
 function createDom(fiber) {
-    const dom = element.type === 'TEXT_ELEMENT'
+    const dom = fiber.type === 'TEXT_ELEMENT'
         ? document.createTextNode('')
-        : document.createElement(element.type)
+        : document.createElement(fiber.type)
     
-    Object.keys(element.props)
+    Object.keys(fiber.props)
         .filter(isProperty)
         .forEach(name => {
-            dom[ name ] = element.props[ name ]
+            dom[ name ] = fiber.props[ name ]
         })
 
     return dom
 }
 
-function performUnitOfWork() {
+function performUnitOfWork(fiber) {
     // set dom property
     if (!fiber.dom) {
         fiber.dom = createDom(fiber)
@@ -42,13 +42,13 @@ function performUnitOfWork() {
 
         const newFiber = {
             type: element.type,
-            props: elements.this.props,
+            props: element.props,
             parent: fiber,
             dom: null
         }
 
         if (index === 0) {
-            newFiber.child = newFiber
+            fiber.child = newFiber
         } else {
             prevSibling.sibling = newFiber
         }
