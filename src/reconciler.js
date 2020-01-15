@@ -1,12 +1,13 @@
 const isProperty = k => k !== 'children'
 
 export function render(element, container) {
-    nextUnitOfWork = {
+    wipRoot = {
         dom: container,
         props: {
             children: [ element ]
         }
     }
+    nextUnitOfWork = wipRoot
 }
 
 function createDom(fiber) {
@@ -27,9 +28,6 @@ function performUnitOfWork(fiber) {
     // set dom property
     if (!fiber.dom) {
         fiber.dom = createDom(fiber)
-    }
-    if (fiber.parent) {
-        fiber.parent.dom.appendChild(fiber.dom)
     }
 
     // reconciler children
@@ -71,17 +69,36 @@ function performUnitOfWork(fiber) {
 }
 
 let nextUnitOfWork = null // each unit of work is a fiber for a element.
+let wipRoot = null
 
 function workLoop(dealine) {
     let shouldYield = false
 
-    while (nextUnitOfWork && !shouldYield) {
+    while (nextUnitOfWork && !shouldYield) { // workloop could be yield.
         nextUnitOfWork = performUnitOfWork( nextUnitOfWork )
 
         shouldYield = dealine.timeRemaining() < 1
     }
 
+    if (!nextUnitOfWork && wipRoot) {
+        commitRoot()
+    }
+
     requestIdleCallback( workLoop )
+}
+
+// commit fiber tree to the dom.
+function commitRoot() {
+    commitWork(wipRoot.child)
+    wipRoot = null
+}
+
+function commitWork(fiber) {
+    if (!fiber) return
+    const parentDom = fiber.parent.dom
+    parentDom.appendChild( fiber.dom )
+    commitWork( fiber.child )
+    commitWork( fiber.sibling )
 }
 
 requestIdleCallback( workLoop )
