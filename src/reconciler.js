@@ -1,6 +1,9 @@
-const isProperty = k => k !== 'children'
-const isNewProp = (old, new) => key => old[key] !== new[key]
-const isGoneProp = (old, new) => key => !(key in new)
+import {
+    isEventProp,
+    isProperty,
+    isNewProp,
+    isGoneProp
+} from './utils'
 
 export function render(element, container) {
     wipRoot = {
@@ -26,28 +29,6 @@ function createDom(fiber) {
         })
 
     return dom
-}
-
-function performUnitOfWork(fiber) {
-    // set dom property
-    if (!fiber.dom) {
-        fiber.dom = createDom(fiber)
-    }
-
-    const elements = fiber.props.children
-    reconcileChildren(fiber, elements)
-
-    // return next unit of work
-    if (fiber.child) {
-        return fiber.child
-    }
-    let nextFiber = fiber
-    while (nextFiber) {
-        if (nextFiber.sibling) {
-            return nextFiber.sibling
-        }
-        nextFiber = nextFiber.parent
-    }
 }
 
 let nextUnitOfWork = null // each unit of work is a fiber for a element.
@@ -89,6 +70,7 @@ function commitWork(fiber) {
     }
     if (fiber.effectTag === 'DELETE') {
         parentDom.removeChild( fiber.dom )
+        return
     }
     if (fiber.effectTag === 'UPDATE') {
         updateDom(
@@ -118,6 +100,49 @@ function updateDom(dom, oldProps, newProps) {
         .forEach(key => {
             dom[ key ] = newProps[ key ]
         })
+    
+    // remove old event props.
+    Object.keys(oldProps)
+        .filter(isEventProp)
+        .filter(k => 
+            isNewProp(oldProps, newProps)(k) || 
+            isGoneProp(oldProps, newProps)(k)
+        )
+        .forEach(key => {
+            const eventType = key.toLowerCase().slice(2)
+            dom.removeEventListener(eventType, oldProps[ key ])
+        })
+
+    // set new event props
+    Object.keys(newProps)
+        .filter(isEventProp)
+        .filter(isNewProp(oldProps, newProps))
+        .forEach(key => {
+            const eventType = key.toLowerCase().slice(2)
+            dom.addEventListener(eventType, newProps[ key ])
+        })
+}
+
+function performUnitOfWork(fiber) {
+    // set dom property
+    if (!fiber.dom) {
+        fiber.dom = createDom(fiber)
+    }
+
+    const elements = fiber.props.children
+    reconcileChildren(fiber, elements)
+
+    // return next unit of work
+    if (fiber.child) {
+        return fiber.child
+    }
+    let nextFiber = fiber
+    while (nextFiber) {
+        if (nextFiber.sibling) {
+            return nextFiber.sibling
+        }
+        nextFiber = nextFiber.parent
+    }
 }
 
 // reconciler children
@@ -176,4 +201,4 @@ function reconcileChildren(wipFiber, elements) {
     }
 }
 
-requestIdleCallback( workLoop )
+requestIdleCallback( workLoop ) // TODO: when to stop.
