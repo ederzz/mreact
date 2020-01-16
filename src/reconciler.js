@@ -23,11 +23,7 @@ function createDom(fiber) {
         ? document.createTextNode('')
         : document.createElement(fiber.type)
     
-    Object.keys(fiber.props)
-        .filter(isProperty)
-        .forEach(name => {
-            dom[ name ] = fiber.props[ name ]
-        })
+    updateDom( dom, {}, fiber.props )
 
     return dom
 }
@@ -36,10 +32,11 @@ let nextUnitOfWork = null // each unit of work is a fiber for a element.
 let wipRoot = null
 let currentRoot = null
 let deletions = null // store nodes needed be removed.
+let wipFiber = null
+let hookIndex = null
+let shouldYield = false
 
 function workLoop(dealine) {
-    let shouldYield = false
-
     while (nextUnitOfWork && !shouldYield) { // workloop could be yield.
         nextUnitOfWork = performUnitOfWork( nextUnitOfWork )
 
@@ -158,6 +155,10 @@ function performUnitOfWork(fiber) {
 }
 
 function updateFunctionComponent(fiber) {
+    wipFiber = fiber
+    hookIndex = 0
+    wipFiber.hooks = []
+
     const children = [ fiber.type(fiber.props) ]
     reconcileChildren(fiber, children)
 }
@@ -178,7 +179,7 @@ function reconcileChildren(wipFiber, elements) {
     let prevSibling = null
     let oldFiber = wipFiber.alternate && wipFiber.alternate.child
 
-    while (index < elements.length || oldFiber !== null) {
+    while (index < elements.length || oldFiber != null) {
         let newFiber = null
         const element = elements[ index ]
         const sameType = oldFiber &&
@@ -219,13 +220,47 @@ function reconcileChildren(wipFiber, elements) {
 
         if (index === 0) {
             wipFiber.child = newFiber
-        } else {
+        } else if (element) {
             prevSibling.sibling = newFiber
         }
 
         prevSibling = newFiber
         index++
     }
+}
+
+export function useState( initial ) {
+    const oldHook = 
+        wipFiber.alternate &&
+        wipFiber.alternate.hooks &&
+        wipFiber.alternate.hooks[ hookIndex ]
+    
+    const hook = {
+        state: oldHook ? oldHook.state : initial,
+        queue: []
+    }
+
+    const actions = oldHook ? oldHook.queue : []
+    actions.forEach(action => {
+        hook.state = action( hook.state )
+    })
+
+    const setState = action => {
+        hook.queue.push( action )
+        
+        wipRoot = {
+            dom: currentRoot.dom,
+            props: currentRoot.props,
+            alternate: currentRoot
+        }
+        nextUnitOfWork = wipRoot
+        deletions = []
+    }
+
+    wipFiber.hooks.push( hook )
+    hookIndex++
+
+    return [ hook.state, setState ]
 }
 
 requestIdleCallback( workLoop ) // TODO: when to stop.
